@@ -1,7 +1,7 @@
 # frozen_string_literal: true
-
+require_relative './constants'
 class Workspace
-  IGNORE = [".", "..", ".git", ".idea"]
+  IGNORE = [".", "..", REPOSITORY_DIRECTORY, ".git", ".idea"]
 
   def initialize(pathname)
     @pathname = pathname
