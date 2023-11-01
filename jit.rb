@@ -7,15 +7,19 @@ require_relative "./entry"
 require_relative "./tree"
 require_relative "./author"
 require_relative "./commit"
+require_relative './constants'
+require_relative './refs'
 
 command = ARGV.shift
+
+puts REPOSITORY_DIRECTORY
 
 case command
 when "init"
   path = ARGV.fetch(0, Dir.getwd)
 
   root_path = Pathname.new(File.expand_path(path))
-  git_path = root_path.join(".git")
+  git_path = root_path.join(REPOSITORY_DIRECTORY)
 
   ["objects", "refs"].each do |dir|
     begin
@@ -31,10 +35,11 @@ when "init"
 
 when "commit"
   root_path = Pathname.new(Dir.getwd)
-  git_path = root_path.join(".git")
+  git_path = root_path.join(REPOSITORY_DIRECTORY)
   db_path = git_path.join("objects")
   workspace = Workspace.new(root_path)
   database = Database.new(db_path)
+  refs = Refs.new(git_path)
   entries = workspace.list_files.map do |path|
     data = workspace.read_file(path)
     blob = Blob.new(data)
@@ -45,18 +50,18 @@ when "commit"
   tree = Tree.new(entries)
   database.store(tree)
 
+  parent = refs.read_head
   name = ENV.fetch("JIT_AUTHOR_NAME")
   email = ENV.fetch("JIT_AUTHOR_EMAIL")
   author = Author.new(name, email, Time.now)
   message = $stdin.read
-  commit = Commit.new(tree.oid, author, message)
+
+  commit = Commit.new(tree.oid, parent, author, message)
   database.store(commit)
+  refs.update_head(commit.oid)
 
-  File.open(git_path.join("HEAD"), File::WRONLY | File::CREAT) do |file|
-    file.puts(commit.oid)
-  end
-
-  puts "[(root-commit) #{ commit.oid }] #{ message.lines.first }"
+  is_root = parent.nil? ? "(root-commit) " : ""
+  puts "[#{ is_root }#{ commit.oid }] #{ message.lines.first }"
   exit 0
 else
   $stderr.puts "jit: '#{ command }' is not a jit command."
